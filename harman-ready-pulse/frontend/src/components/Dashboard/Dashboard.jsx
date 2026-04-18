@@ -130,7 +130,7 @@ export default function Dashboard() {
           {queueCount > 0 && (
             <div className="flex items-center gap-1.5 bg-yellow-900/40 border border-yellow-700/50 text-yellow-400 px-3 py-1.5 rounded-full text-xs font-semibold">
               <Bell className="w-3 h-3" />
-              {queueCount} deferred
+              {queueCount} pending
             </div>
           )}
           <button

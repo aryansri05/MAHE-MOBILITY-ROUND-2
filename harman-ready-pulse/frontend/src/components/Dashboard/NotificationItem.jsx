@@ -1,5 +1,5 @@
 import React from "react";
-import { MessageCircle, Users, Hash, PhoneCall, Bell, Mail, Play, Camera } from "lucide-react";
+import { MessageCircle, Users, Hash, Bell, Mail, Play, Camera } from "lucide-react";
 
 // Helper to determine app metadata based on the app name field
 const getAppMetadata = (appName) => {
@@ -21,18 +21,36 @@ const getAppMetadata = (appName) => {
   }
 };
 
-const NotificationItem = React.memo(({ msg }) => {
-  const priority = msg.priority || 2; 
-  const { title, Icon, color } = getAppMetadata(msg.app);
+// Priority badge styles
+const getPriorityBadge = (priority, isEmergency) => {
+  if (isEmergency) {
+    return { text: "Emergency", className: "bg-red-500 text-white animate-pulse" };
+  }
+  switch (priority) {
+    case 1:
+      return { text: "High", className: "bg-red-900/60 text-red-400 border border-red-700/50" };
+    case 2:
+      return { text: "Medium", className: "bg-yellow-900/40 text-yellow-400 border border-yellow-700/50" };
+    case 3:
+      return { text: "Low", className: "bg-gray-800 text-gray-500 border border-gray-700" };
+    default:
+      return { text: "Normal", className: "bg-gray-800 text-gray-500 border border-gray-700" };
+  }
+};
 
-  // Use displayTime if available, fall back to formatting the numeric timestamp
+const NotificationItem = React.memo(({ msg }) => {
+  const priority = msg.priority || 2;
+  const { title, Icon, color } = getAppMetadata(msg.app);
+  const badge = getPriorityBadge(priority, msg.is_emergency);
+
+  // Clean time display: "12:10 PM" format
   const displayTime = msg.displayTime || (
     typeof msg.timestamp === "number"
-      ? new Date(msg.timestamp).toLocaleTimeString()
+      ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : msg.timestamp
   );
 
-  let containerClass = "bg-gray-800 border-gray-700";
+  let containerClass = "bg-gray-800/80 border-gray-700";
   let textClass = "text-gray-200 text-sm mt-2";
   let opacityClass = "opacity-100";
 
@@ -40,9 +58,9 @@ const NotificationItem = React.memo(({ msg }) => {
     containerClass = "bg-red-900/30 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]";
     textClass = "text-white font-medium text-sm mt-2";
   } else if (priority === 3) {
-    containerClass = "bg-gray-800/50 border-gray-800";
-    textClass = "text-gray-500 text-xs mt-2";
-    opacityClass = "opacity-60";
+    containerClass = "bg-gray-800/40 border-gray-800";
+    textClass = "text-gray-400 text-xs mt-2";
+    opacityClass = "opacity-70";
   }
 
   return (
@@ -53,13 +71,17 @@ const NotificationItem = React.memo(({ msg }) => {
           <Icon className={`w-5 h-5 ${color}`} />
           <span className="font-bold text-gray-300 tracking-wide text-sm uppercase">{title}</span>
         </div>
-        <span className="text-xs text-gray-400 font-mono">{displayTime}</span>
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${badge.className}`}>
+            {badge.text}
+          </span>
+          <span className="text-xs text-gray-500 font-mono">{displayTime}</span>
+        </div>
       </div>
 
-      {/* Sub-Header (Sender) */}
-      <div className="flex justify-between items-center">
+      {/* Sender */}
+      <div className="flex justify-between items-center mt-1">
         <span className="font-semibold text-gray-400 text-xs">{msg.sender}</span>
-        {msg.is_emergency && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">Emergency</span>}
       </div>
 
       {/* Content */}

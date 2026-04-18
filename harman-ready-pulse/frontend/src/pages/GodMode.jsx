@@ -27,7 +27,7 @@ export default function GodMode({ socket }) {
         : msgText,
       is_emergency: isEmergency,
       timestamp: Date.now(),
-      displayTime: new Date().toLocaleTimeString()
+      displayTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     socket.emit('inject_mock_message', payload);

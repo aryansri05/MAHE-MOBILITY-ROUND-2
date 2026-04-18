@@ -1,5 +1,5 @@
 import React from "react";
-import { Layers, Database } from "lucide-react";
+import { Clock, Database } from "lucide-react";
 
 function formatBytes(bytes) {
   if (bytes === 0) return "0 B";
@@ -12,10 +12,10 @@ export default function MetricsPanel({ queueCount, bytesSaved = 0 }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       <div className="bg-gray-900/60 border border-gray-800 rounded-lg px-3 py-2 flex items-center gap-2">
-        <Layers className="w-4 h-4 text-blue-500 flex-none" />
+        <Clock className="w-4 h-4 text-yellow-500 flex-none" />
         <div>
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Queued</p>
-          <p className="text-sm font-bold text-white">{queueCount}</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Pending</p>
+          <p className="text-sm font-bold text-white">{queueCount} {queueCount === 1 ? 'notification' : 'notifications'}</p>
         </div>
       </div>
       <div className="bg-gray-900/60 border border-gray-800 rounded-lg px-3 py-2 flex items-center gap-2">
