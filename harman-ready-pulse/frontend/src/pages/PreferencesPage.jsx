@@ -5,7 +5,7 @@ import { MessageCircle, Hash, Users, Mail, Play, Camera, ChevronDown, GripVertic
 import { motion, Reorder } from "framer-motion";
 import { socket } from "../socket";
 
-const APPS = [
+const INITIAL_APPS = [
   { id: "whatsapp", name: "WhatsApp", Icon: MessageCircle, color: "text-green-500" },
   { id: "gmail", name: "Gmail", Icon: Mail, color: "text-red-500" },
   { id: "slack", name: "Slack", Icon: Hash, color: "text-purple-500" },
@@ -15,14 +15,42 @@ const APPS = [
 ];
 
 export default function PreferencesPage() {
+  const [appsList, setAppsList] = useState(INITIAL_APPS);
   const [preferences, setPreferences] = useState({
     whatsapp: { priority: 2, timeRange: [0, 24] },
-    gmail: { priority: 1, timeRange: [9, 17] },
-    slack: { priority: 1, timeRange: [9, 17] },
-    teams: { priority: 1, timeRange: [9, 18] },
+    gmail: { priority: 1, timeRange: [0, 24] },
+    slack: { priority: 1, timeRange: [9, 20] },
+    teams: { priority: 1, timeRange: [9, 20] },
     youtube: { priority: 3, timeRange: [0, 24] },
     instagram: { priority: 3, timeRange: [0, 24] }
   });
+
+  React.useEffect(() => {
+    const handlePrefs = (rules) => {
+      if (!rules) return;
+      const newPrefs = {};
+      const newAppsList = [];
+      Object.keys(rules).forEach(appName => {
+        const id = appName.toLowerCase();
+        const startHour = rules[appName].timeWindow ? parseInt(rules[appName].timeWindow.start.split(':')[0]) : 0;
+        const endHour = rules[appName].timeWindow ? parseInt(rules[appName].timeWindow.end.split(':')[0]) : 24;
+        newPrefs[id] = { priority: rules[appName].basePriority, timeRange: [startHour, endHour] };
+        
+        const existingApp = INITIAL_APPS.find(a => a.id === id);
+        if (existingApp) {
+          newAppsList.push(existingApp);
+        } else {
+          // New HARMAN Ignite App
+          newAppsList.push({ id, name: appName, Icon: Hash, color: "text-blue-400" });
+        }
+      });
+      setPreferences(newPrefs);
+      setAppsList(newAppsList);
+    };
+
+    socket.on('preferences_updated', handlePrefs);
+    return () => socket.off('preferences_updated', handlePrefs);
+  }, []);
 
   const [contactPriorities, setContactPriorities] = useState([
     { id: "mom", name: "Mom", priority: "High (Override)" },
@@ -108,9 +136,9 @@ export default function PreferencesPage() {
             <h2 className="text-xl font-semibold border-b border-gray-800 pb-3">Global App Rules</h2>
             
             <div className="space-y-4">
-              {APPS.map((app) => {
+              {appsList.map((app) => {
                 const isExpanded = expandedApp === app.id;
-                const prefs = preferences[app.id];
+                const prefs = preferences[app.id] || { priority: 3, timeRange: [0, 24] };
 
                 return (
                   <div key={app.id} className="bg-gray-900/50 border border-gray-800 rounded-2xl overflow-hidden transition-all duration-300">

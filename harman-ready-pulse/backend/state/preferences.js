@@ -88,6 +88,43 @@ class PreferencesManager {
     // 3. Base Priority (Fallback)
     return { priority: app.basePriority, isContactOverride: false };
   }
+
+  /**
+   * HARMAN IGNITE STORE INTEGRATION
+   * Dynamically registers a new third-party app based on its declared Notification Class.
+   */
+  registerIgniteApp(appName, notificationClass) {
+    let basePriority = 3;
+    let timeWindow = { start: "00:00", end: "23:59" };
+
+    switch(notificationClass) {
+      case 'COMMUNICATION':
+        basePriority = 2; // Standard Medium Priority
+        break;
+      case 'PRODUCTIVITY':
+        basePriority = 2;
+        timeWindow = { start: "09:00", end: "18:00" }; // Work hours only
+        break;
+      case 'SYSTEM':
+        basePriority = 1; // High Priority
+        break;
+      case 'SOCIAL':
+      case 'MEDIA':
+      default:
+        basePriority = 3; // Low (Queue Only)
+        break;
+    }
+
+    this.rules[appName] = {
+      basePriority,
+      timeWindow,
+      contactOverrides: {},
+      isIgniteApp: true,
+      notificationClass
+    };
+    
+    return this.rules[appName];
+  }
 }
 
 module.exports = new PreferencesManager();

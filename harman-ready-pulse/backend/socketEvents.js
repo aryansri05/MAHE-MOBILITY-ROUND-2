@@ -48,6 +48,7 @@ module.exports = (io) => {
         socket.emit('network_state_changed', currentNetwork);
         socket.emit('queue_updated', queue.length);
         socket.emit('stats_updated', queue.stats);
+        socket.emit('preferences_updated', preferences.rules);
 
         /**
          * EVENT: network_state_changed
@@ -165,6 +166,19 @@ module.exports = (io) => {
             });
             console.log('[PREFS] User preferences updated from Settings UI');
             io.emit('preferences_updated', preferences.rules);
+        });
+
+        /**
+         * EVENT: deploy_ignite_app
+         * Simulates a third-party dev publishing an app to the HARMAN Ignite Store.
+         */
+        socket.on('deploy_ignite_app', (data) => {
+            const { appName, notificationClass } = data;
+            if (appName && notificationClass) {
+                preferences.registerIgniteApp(appName, notificationClass);
+                console.log(`[IGNITE STORE] New app deployed: ${appName} [Class: ${notificationClass}]`);
+                io.emit('preferences_updated', preferences.rules);
+            }
         });
 
         /** EVENT: clear_queue (manual flush from UI) */
