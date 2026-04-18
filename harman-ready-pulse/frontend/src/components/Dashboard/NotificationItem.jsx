@@ -1,30 +1,52 @@
 import React from "react";
+import { MessageCircle, Users, Hash, PhoneCall, Bell } from "lucide-react";
+
+// Helper to determine app metadata based on sender
+const getAppMetadata = (sender) => {
+  const s = sender.toLowerCase();
+  if (s.includes("mom")) return { title: "Messages", Icon: MessageCircle, color: "text-blue-400" };
+  if (s.includes("boss")) return { title: "Teams", Icon: Users, color: "text-indigo-400" };
+  if (s.includes("slack")) return { title: "Slack", Icon: Hash, color: "text-purple-400" };
+  if (s.includes("airtel")) return { title: "Phone", Icon: PhoneCall, color: "text-green-400" };
+  return { title: "Notification", Icon: Bell, color: "text-gray-400" };
+};
 
 const NotificationItem = React.memo(({ msg }) => {
-  // Determine styling based on priority
-  // Default to priority 2 if not provided
   const priority = msg.priority || 2; 
+  const { title, Icon, color } = getAppMetadata(msg.sender);
 
-  let borderClass = "";
-  let textClass = "text-sm";
-  let opacityClass = "";
+  let containerClass = "bg-gray-800 border-gray-700";
+  let textClass = "text-gray-200 text-sm mt-2";
+  let opacityClass = "opacity-100";
 
   if (priority === 1 || msg.is_emergency) {
-    borderClass = "border-2 border-red-500";
+    containerClass = "bg-red-900/30 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]";
+    textClass = "text-white font-medium text-sm mt-2";
   } else if (priority === 3) {
-    borderClass = "border border-gray-700";
-    textClass = "text-xs text-gray-500";
-    opacityClass = "opacity-50";
+    containerClass = "bg-gray-800/50 border-gray-800";
+    textClass = "text-gray-500 text-xs mt-2";
+    opacityClass = "opacity-60";
   }
 
   return (
-    <div className={`bg-gray-800 p-3 rounded mb-2 ${borderClass} ${opacityClass}`}>
-      <div className="flex justify-between">
-        <span className="font-bold">{msg.sender}</span>
-        {msg.is_emergency && <span className="text-red-500">⚠️</span>}
+    <div className={`p-4 rounded-xl border mb-3 ${containerClass} ${opacityClass} transition-all duration-300`}>
+      {/* Header Row */}
+      <div className="flex justify-between items-center mb-1">
+        <div className="flex items-center gap-2">
+          <Icon className={`w-5 h-5 ${color}`} />
+          <span className="font-bold text-gray-300 tracking-wide text-sm uppercase">{title}</span>
+        </div>
+        <span className="text-xs text-gray-400 font-mono">{msg.timestamp}</span>
       </div>
+
+      {/* Sub-Header (Sender) */}
+      <div className="flex justify-between items-center">
+        <span className="font-semibold text-gray-400 text-xs">{msg.sender}</span>
+        {msg.is_emergency && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">Emergency</span>}
+      </div>
+
+      {/* Content */}
       <p className={textClass}>{msg.text}</p>
-      <p className="text-xs text-gray-400">{msg.timestamp}</p>
     </div>
   );
 });
