@@ -86,27 +86,7 @@ export default function GodMode({ socket }) {
               </div>
             </div>
 
-            {/* Network Toggle */}
-            <div className="bg-gray-900/60 border border-gray-800 p-6 rounded-2xl shadow-lg backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <Settings2 className="w-5 h-5 text-emerald-500" />
-                <h2 className="text-lg font-semibold text-gray-200">Environment Override</h2>
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => sendNetworkToggle('5G')}
-                  className="flex-1 bg-gray-800/80 hover:bg-emerald-600 hover:text-white hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-gray-700 py-4 rounded-xl font-bold text-gray-300 transition-all active:scale-95"
-                >
-                  FORCE 5G
-                </button>
-                <button
-                  onClick={() => sendNetworkToggle('DEAD_ZONE')}
-                  className="flex-1 bg-gray-800/80 hover:bg-red-600 hover:text-white hover:shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-gray-700 py-4 rounded-xl font-bold text-gray-300 transition-all active:scale-95"
-                >
-                  DEAD ZONE
-                </button>
-              </div>
-            </div>
+
 
             {/* System Override */}
             <div className="bg-red-950/20 border border-red-900/50 p-6 rounded-2xl shadow-lg">
