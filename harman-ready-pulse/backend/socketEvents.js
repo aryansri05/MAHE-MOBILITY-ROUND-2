@@ -82,8 +82,12 @@ module.exports = (io) => {
 
             try {
                 // Step 1: Priority Engine
-                msg.priority = preferences.getPriority(msg.app, msg.sender);
-                console.log(`[TRIAGE] Assigned Priority: ${msg.priority}`);
+                const priorityData = preferences.calculateAbsolutePriority(msg);
+                msg.absolutePriority = priorityData.priority;
+                msg.isContactOverride = priorityData.isContactOverride;
+                // For UI display, we can map 999 to 4 or just pass it through
+                msg.priority = msg.absolutePriority === 999 ? 4 : msg.absolutePriority;
+                console.log(`[TRIAGE] Assigned Absolute Priority: ${msg.absolutePriority}`);
 
                 // Step 2: Edge AI Gatekeeper
                 const isEmergency = await checkEmergencyIntent(msg.text);
@@ -103,7 +107,7 @@ module.exports = (io) => {
                     broadcastStats(io);
                 } else {
                     // DEAD_ZONE
-                    if (isEmergency || msg.priority === 1) {
+                    if (isEmergency || msg.absolutePriority === 1) {
                         // Critical: push through
                         queue.trackDelivered(msg);
                         if (isEmergency) {
@@ -114,9 +118,9 @@ module.exports = (io) => {
                             console.log("📲 Priority-1 Delivered (DEAD_ZONE override)");
                         }
                     } else {
-                        // P2, P3 → defer
+                        // P2, P3, P999 → defer
                         queue.push(msg);
-                        console.log(`📦 Deferred (P${msg.priority}). Pending: ${queue.length}`);
+                        console.log(`📦 Deferred (P${msg.absolutePriority}). Pending: ${queue.length}`);
                         io.emit('queue_updated', queue.length);
                     }
                     broadcastStats(io);
@@ -140,20 +144,16 @@ module.exports = (io) => {
                 const ruleKey = Object.keys(preferences.rules).find(
                     k => k.toLowerCase() === appId.toLowerCase()
                 );
-                if (ruleKey && appConfig.priority) {
-                    preferences.rules[ruleKey].priority = appConfig.priority;
-                    if (appConfig.timeRange) {
-                        preferences.rules[ruleKey].activeWindow = {
-                            start: appConfig.timeRange[0],
-                            end: appConfig.timeRange[1]
+                if (ruleKey && appConfig.basePriority) {
+                    preferences.rules[ruleKey].basePriority = appConfig.basePriority;
+                    if (appConfig.timeWindow) {
+                        preferences.rules[ruleKey].timeWindow = {
+                            start: appConfig.timeWindow.start,
+                            end: appConfig.timeWindow.end
                         };
                     }
-                    // WhatsApp contact priority override
-                    if (appId === 'whatsapp' && appConfig.contactPriority) {
-                        if (!preferences.rules[ruleKey].contacts) {
-                            preferences.rules[ruleKey].contacts = {};
-                        }
-                        preferences.rules[ruleKey].contacts[appConfig.contactPriority] = { priority: 1 };
+                    if (appConfig.contactOverrides) {
+                        preferences.rules[ruleKey].contactOverrides = { ...appConfig.contactOverrides };
                     }
                 }
             });

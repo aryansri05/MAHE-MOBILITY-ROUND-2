@@ -28,7 +28,7 @@ class NotificationQueue {
    */
   getAllSorted() { 
     return [...this.messages].sort(
-      (a, b) => (a.priority - b.priority) || (a.timestamp - b.timestamp)
+      (a, b) => (a.absolutePriority - b.absolutePriority) || (b.timestamp - a.timestamp)
     );
   }
   

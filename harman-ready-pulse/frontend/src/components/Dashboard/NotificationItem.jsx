@@ -37,7 +37,7 @@ const getPriorityBadge = (priority, isEmergency) => {
 };
 
 const NotificationItem = React.memo(({ msg, index = 0 }) => {
-  const priority = msg.priority || 2;
+  const priority = msg.absolutePriority || msg.priority || 2;
   const { title, Icon, color, bg } = getAppMetadata(msg.app);
   const badge = getPriorityBadge(priority, msg.is_emergency);
 
@@ -103,7 +103,10 @@ const NotificationItem = React.memo(({ msg, index = 0 }) => {
           </div>
           <div>
             <span className="font-semibold text-gray-300 text-xs uppercase tracking-wide">{title}</span>
-            <p className="text-gray-500 text-[10px]">{msg.sender}</p>
+            <p className="text-gray-500 text-[10px] flex items-center gap-1">
+              {msg.sender}
+              {msg.isContactOverride && <span className="text-yellow-400 font-bold bg-yellow-400/10 px-1 rounded">⭐ VIP</span>}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">

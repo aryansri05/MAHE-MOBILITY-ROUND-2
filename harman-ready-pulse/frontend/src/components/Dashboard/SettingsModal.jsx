@@ -14,13 +14,15 @@ const APPS = [
 
 export default function SettingsModal({ isOpen, onClose, onSave }) {
   const [preferences, setPreferences] = useState({
-    whatsapp: { priority: 2, timeRange: [0, 24], contactPriority: "Mom" },
-    gmail: { priority: 1, timeRange: [9, 17] },
-    slack: { priority: 1, timeRange: [9, 17] },
-    teams: { priority: 1, timeRange: [9, 18] },
-    youtube: { priority: 3, timeRange: [0, 24] },
-    instagram: { priority: 3, timeRange: [0, 24] }
+    whatsapp: { basePriority: 2, timeRange: [0, 24], contactOverrides: { "Mom": 1 } },
+    gmail: { basePriority: 1, timeRange: [9, 17], contactOverrides: {} },
+    slack: { basePriority: 1, timeRange: [9, 17], contactOverrides: {} },
+    teams: { basePriority: 1, timeRange: [9, 18], contactOverrides: {} },
+    youtube: { basePriority: 3, timeRange: [0, 24], contactOverrides: {} },
+    instagram: { basePriority: 3, timeRange: [0, 24], contactOverrides: {} }
   });
+
+  const [newContact, setNewContact] = useState({ name: "", priority: 1 });
 
   const [expandedApp, setExpandedApp] = useState("whatsapp");
 
@@ -33,8 +35,48 @@ export default function SettingsModal({ isOpen, onClose, onSave }) {
     }));
   };
 
+  const handleAddContact = (appId) => {
+    if (!newContact.name.trim()) return;
+    setPreferences(prev => ({
+      ...prev,
+      [appId]: {
+        ...prev[appId],
+        contactOverrides: {
+          ...prev[appId].contactOverrides,
+          [newContact.name.trim()]: newContact.priority
+        }
+      }
+    }));
+    setNewContact({ name: "", priority: 1 });
+  };
+
+  const handleRemoveContact = (appId, contactName) => {
+    setPreferences(prev => {
+      const updatedOverrides = { ...prev[appId].contactOverrides };
+      delete updatedOverrides[contactName];
+      return {
+        ...prev,
+        [appId]: {
+          ...prev[appId],
+          contactOverrides: updatedOverrides
+        }
+      };
+    });
+  };
+
   const handleSave = () => {
-    onSave(preferences);
+    const formattedPrefs = {};
+    Object.keys(preferences).forEach(appId => {
+      formattedPrefs[appId] = {
+        basePriority: preferences[appId].basePriority,
+        timeWindow: {
+          start: formatTime(preferences[appId].timeRange[0]),
+          end: formatTime(preferences[appId].timeRange[1])
+        },
+        contactOverrides: preferences[appId].contactOverrides
+      };
+    });
+    onSave(formattedPrefs);
     onClose();
   };
 
@@ -71,8 +113,8 @@ export default function SettingsModal({ isOpen, onClose, onSave }) {
                     <span className="font-semibold text-lg">{app.name}</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${prefs.priority === 1 ? 'bg-red-900/50 text-red-400' : prefs.priority === 2 ? 'bg-gray-700 text-gray-300' : 'bg-gray-900 text-gray-500'}`}>
-                      Priority {prefs.priority}
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${prefs.basePriority === 1 ? 'bg-red-900/50 text-red-400' : prefs.basePriority === 2 ? 'bg-gray-700 text-gray-300' : 'bg-gray-900 text-gray-500'}`}>
+                      Priority {prefs.basePriority}
                     </span>
                     <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
@@ -83,10 +125,10 @@ export default function SettingsModal({ isOpen, onClose, onSave }) {
                   <div className="p-5 border-t border-gray-700 bg-gray-800/30 space-y-6">
                     {/* Priority Dropdown */}
                     <div>
-                      <label className="block text-sm text-gray-400 mb-2 font-medium">Global Priority Level</label>
+                      <label className="block text-sm text-gray-400 mb-2 font-medium">Base Priority Level</label>
                       <select 
-                        value={prefs.priority} 
-                        onChange={(e) => handleUpdate(app.id, 'priority', parseInt(e.target.value, 10))}
+                        value={prefs.basePriority} 
+                        onChange={(e) => handleUpdate(app.id, 'basePriority', parseInt(e.target.value, 10))}
                         className="w-full bg-gray-900 border border-gray-600 rounded-lg p-2.5 focus:outline-none focus:border-blue-500 text-gray-200"
                       >
                         <option value={1}>Priority 1: High (Emergency / VIP)</option>
@@ -120,25 +162,53 @@ export default function SettingsModal({ isOpen, onClose, onSave }) {
                       </div>
                     </div>
 
-                    {/* WhatsApp Specific Sub-menu */}
-                    {app.id === "whatsapp" && (
-                      <div className="pt-4 border-t border-gray-700/50">
-                        <label className="block text-sm text-gray-400 mb-2 font-medium">Contact Priority (Overrides Global)</label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            value={prefs.contactPriority}
-                            onChange={(e) => handleUpdate(app.id, 'contactPriority', e.target.value)}
-                            placeholder="e.g. Mom, Boss"
-                            className="flex-1 bg-gray-900 border border-gray-600 rounded-lg p-2 focus:outline-none focus:border-green-500 text-gray-200"
-                          />
-                          <div className="bg-red-900/40 border border-red-500/50 text-red-400 px-3 py-2 rounded-lg text-sm font-bold flex items-center justify-center">
-                            Priority 1
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">Messages from this contact will always be treated as Priority 1.</p>
+                    {/* VIP Contacts Sub-menu */}
+                    <div className="pt-4 border-t border-gray-700/50">
+                      <label className="block text-sm text-gray-400 mb-2 font-medium">VIP Contacts (Overrides Base Priority)</label>
+                      <div className="flex gap-2 mb-3">
+                        <input 
+                          type="text" 
+                          value={newContact.name}
+                          onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                          placeholder="e.g. Mom, Boss"
+                          className="flex-1 bg-gray-900 border border-gray-600 rounded-lg p-2 focus:outline-none focus:border-green-500 text-gray-200"
+                        />
+                        <select 
+                          value={newContact.priority}
+                          onChange={(e) => setNewContact({ ...newContact, priority: parseInt(e.target.value, 10) })}
+                          className="w-24 bg-gray-900 border border-gray-600 rounded-lg p-2 focus:outline-none focus:border-green-500 text-gray-200"
+                        >
+                          <option value={1}>P1</option>
+                          <option value={2}>P2</option>
+                          <option value={3}>P3</option>
+                        </select>
+                        <button 
+                          onClick={() => handleAddContact(app.id)}
+                          className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                        >
+                          Add
+                        </button>
                       </div>
-                    )}
+                      
+                      {/* Pill List */}
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(prefs.contactOverrides || {}).map(([name, prio]) => (
+                          <div key={name} className="flex items-center gap-1 bg-gray-900 border border-gray-600 rounded-full px-3 py-1">
+                            <span className="text-sm text-gray-200 font-medium">{name}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${prio === 1 ? 'bg-red-900/50 text-red-400' : prio === 2 ? 'bg-yellow-900/50 text-yellow-400' : 'bg-gray-800 text-gray-500'}`}>
+                              P{prio}
+                            </span>
+                            <button 
+                              onClick={() => handleRemoveContact(app.id, name)}
+                              className="ml-1 text-gray-500 hover:text-red-400 transition-colors"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Messages from these contacts will bypass the base priority.</p>
+                    </div>
 
                   </div>
                 )}

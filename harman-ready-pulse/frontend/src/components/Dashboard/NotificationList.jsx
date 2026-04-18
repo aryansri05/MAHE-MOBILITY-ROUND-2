@@ -2,19 +2,14 @@ import React, { useMemo } from "react";
 import NotificationItem from "./NotificationItem";
 
 export default function NotificationList({ messages }) {
-  // Emergency/P1 pinned to top, rest maintain chronological order (newest first)
+  // Feed strictly sorts by absolutePriority (ascending) then by timestamp (descending)
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
-      const priorityA = a.priority || 2;
-      const priorityB = b.priority || 2;
-      // Emergency always on top
-      if (a.is_emergency && !b.is_emergency) return -1;
-      if (b.is_emergency && !a.is_emergency) return 1;
-      // Then P1
-      if (priorityA === 1 && priorityB !== 1) return -1;
-      if (priorityB === 1 && priorityA !== 1) return 1;
-      // Rest keep insertion order (newest first)
-      return 0;
+      // Emergency always on top, we can represent it as absolutePriority 0
+      const aPriority = a.is_emergency ? 0 : (a.absolutePriority || a.priority || 4);
+      const bPriority = b.is_emergency ? 0 : (b.absolutePriority || b.priority || 4);
+      
+      return aPriority - bPriority || (b.timestamp - a.timestamp);
     });
   }, [messages]);
 
