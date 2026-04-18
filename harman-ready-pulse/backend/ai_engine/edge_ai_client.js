@@ -14,9 +14,11 @@ async function queryEdgeAI(promptText) {
                 prompt: promptText,
                 stream: false,
                 options: {
-                    num_predict: 80,      // Tightened for TTS speed
-                    temperature: 0.0,     // 0.0 for absolute consistency
-                    stop: ["\n", "Summary:", "Messages:"]
+                    num_predict: 120,
+                    temperature: 0.0,
+                    top_k: 1,
+                    top_p: 0.9,
+                    stop: ["\n\n"]
                 }
             }),
             signal: controller.signal

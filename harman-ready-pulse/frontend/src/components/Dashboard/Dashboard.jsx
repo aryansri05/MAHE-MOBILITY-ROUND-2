@@ -4,7 +4,6 @@ import { Wifi, WifiOff, Bell, Shield, ShieldAlert } from "lucide-react";
 
 import NotificationList from "./NotificationList";
 import MetricsPanel from "./MetricsPanel";
-import SmartSummary from "./SmartSummary";
 import SettingsModal from "./SettingsModal";
 import MapView from "../../map/MapView";
 
@@ -24,9 +23,9 @@ export default function Dashboard() {
     const handleMessage = (msg) => setMessages((prev) => [msg, ...prev]);
 
     const handleBatchMessages = (batch) => {
-      // The batch is already sorted by priority & timestamp by the backend.
-      // Prepend the entire batch atomically so they appear at the top.
-      setMessages((prev) => [...batch, ...prev]);
+      // Offline Recovery override: do not dump to the feed explicitly per requirements phase 4. 
+      // The single distinct summary card is tracked via the handleSummary event instead.
+      console.log(`[Dashboard] Received batch but suppressed UI render per Summarized Offline Recovery rule.`);
     };
 
     const handleEmergency = (msg) => {
@@ -52,17 +51,50 @@ export default function Dashboard() {
       }
     };
 
-    const handleNetwork = (state) => setNetwork(state);
+        const handleNetwork = (state) => {
+      if (network === "DEAD_ZONE" && state === "5G") {
+        // We will receive an ai_summary_generated next to handle the card logic
+      }
+      setNetwork(state);
+    };
 
     const handleSummary = (data) => {
       const text = data.text;
+      
+      // Clear the main messages feed when transitioning back to 5G since we show summarize card
+      setMessages([{
+        isSummaryCard: true, 
+        title: "Network Restored", 
+        subtitle: `Offline for ${data.offlineDuration || "a few moments"}`, 
+        text: text, 
+        app: "System",
+        timestamp: Date.now(),
+        deferredMessages: data.messages || []
+      }]);
+
       setSummary(text);
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.1;
-        window.speechSynthesis.speak(utterance);
+        
+        let emergenciesText = "";
+        let summaryRaw = text;
+
+        if (text.includes("SUMMARY:")) {
+          const parts = text.split("SUMMARY:");
+          emergenciesText = parts[0].replace("EMERGENCIES:", "").trim();
+          summaryRaw = "Summary: " + parts[1].trim();
+        }
+
+        let fullSpeech = "";
+        if (emergenciesText && emergenciesText.toLowerCase() !== "none") {
+          fullSpeech += "Priority AI Assessment, Emergencies: " + emergenciesText + ". ";
+        }
+        fullSpeech += summaryRaw;
+
+        const combinedUtterance = new SpeechSynthesisUtterance(fullSpeech);
+        combinedUtterance.rate = 1.0; 
+        combinedUtterance.pitch = 1.1;
+        window.speechSynthesis.speak(combinedUtterance);
       }
     };
 
@@ -198,7 +230,9 @@ export default function Dashboard() {
               <span className="glass" style={{
                 color: isDead ? "#f87171" : "#60a5fa", fontSize: 10, padding: "2px 8px", borderRadius: 999, fontWeight: 700,
               }}>
-                {messages.length}
+                {isDead 
+                  ? messages.filter(m => (m.is_emergency ? 0 : (m.absolutePriority || m.priority || 4)) <= 1).length 
+                  : messages.length}
               </span>
             )}
           </div>
@@ -225,7 +259,6 @@ export default function Dashboard() {
             padding: "10px 14px",
             background: isDead ? "rgba(10,0,0,0.3)" : "rgba(0,0,0,0.2)",
           }}>
-            <SmartSummary text={summary} />
             <MetricsPanel stats={stats} />
           </div>
         </div>

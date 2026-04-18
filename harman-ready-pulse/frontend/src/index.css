@@ -89,6 +89,29 @@ html, body, #root {
   animation: shimmer 2s infinite;
 }
 
+/* Radar Blip Effect Custom Car Icon */
+.radar-blip-icon {
+  width: 24px;
+  height: 24px;
+  background-color: #00ffff;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 10px 4px rgba(0, 255, 255, 0.6);
+  animation: radarPulse 1.5s infinite ease-in-out;
+}
+
+@keyframes radarPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 255, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 15px rgba(0, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 255, 0);
+  }
+}
+
 /* Glassmorphism utility */
 .glass {
   background: rgba(15, 23, 42, 0.6);

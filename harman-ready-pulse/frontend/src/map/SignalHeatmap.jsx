@@ -31,9 +31,10 @@ export default function SignalHeatmap({ points, options = {} }) {
       max: 1.0,
       minOpacity: 0.4,
       gradient: {
-        0.4: "red",
-        0.6: "yellow",
-        1.0: "lime",
+        0.4: '#22c55e',
+        0.6: 'yellow',
+        0.8: 'orange',
+        1.0: 'red'
       },
       ...options,
     });

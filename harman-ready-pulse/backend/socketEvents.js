@@ -1,19 +1,28 @@
-const { checkEmergencyIntent, summarizeQueue } = require('./ai_engine/prompts');
+const { classifyMessageIntent, summarizeQueue } = require('./ai_engine/prompts');
 const queue = require('./state/queue');
 const preferences = require('./state/preferences');
 
 let currentNetwork = "5G";
+let deadZoneStartTime = null;
 
 /** Emit the full stats snapshot to all clients */
 function broadcastStats(io) {
     io.emit('stats_updated', queue.stats);
 }
 
+function formatDuration(ms) {
+    const elapsedSecs = Math.floor(ms / 1000);
+    const mins = Math.floor(elapsedSecs / 60);
+    const secs = elapsedSecs % 60;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+}
+
 /**
  * Flushes the queue through the AI summarizer and emits results.
  * Called when entering 5G or on manual clear_queue.
  */
-async function flushQueue(io) {
+async function flushQueue(io, timeOffline) {
     const missedCount = queue.length;
     if (missedCount === 0) return;
 
@@ -21,19 +30,23 @@ async function flushQueue(io) {
 
     console.log(`[AI] Summarizing ${missedCount} prioritized messages...`);
 
+    let summaryText = "";
     try {
-        const summaryText = await summarizeQueue(messagesToProcess);
-        io.emit('ai_summary_generated', { text: summaryText, count: missedCount });
+        summaryText = await summarizeQueue(messagesToProcess);
+        io.emit('ai_summary_generated', { text: summaryText, count: missedCount, offlineDuration: formatDuration(timeOffline || 0), messages: messagesToProcess });
     } catch (error) {
         console.error("[AI ERROR]", error);
         io.emit('ai_summary_generated', {
             text: `Welcome back. You missed ${missedCount} updates.`,
-            count: missedCount
+            count: missedCount,
+            offlineDuration: formatDuration(timeOffline || 0),
+            messages: messagesToProcess
         });
     }
 
     // Atomic grouped batch delivery of the missed notifications
-    io.emit('receive_batch_messages', messagesToProcess);
+    // Phase 4: Suppress sending the batch. We only want the summary card on the frontend.
+    // io.emit('receive_batch_messages', messagesToProcess);
 
     queue.clear();
     io.emit('queue_updated', 0);
@@ -59,9 +72,14 @@ module.exports = (io) => {
             io.emit('network_state_changed', state);
             console.log(`[NETWORK] State changed to ${state}`);
 
+            if (state === "DEAD_ZONE" && previousNetwork === "5G") {
+                deadZoneStartTime = Date.now();
+            }
+
             if (state === "5G" && previousNetwork === "DEAD_ZONE" && queue.length > 0) {
-                console.log(`[NETWORK] Entered 5G with ${queue.length} pending. Auto-flushing...`);
-                await flushQueue(io);
+                const timeOffline = deadZoneStartTime ? (Date.now() - deadZoneStartTime) : 0;
+                console.log(`[NETWORK] Entered 5G with ${queue.length} pending. Auto-flushing for ${timeOffline}ms...`);
+                await flushQueue(io, timeOffline);
             }
         });
 
@@ -69,71 +87,54 @@ module.exports = (io) => {
          * EVENT: inject_mock_message
          *
          * Routing Decision Tree:
-         *   1. Compute priority via Preference Engine
-         *   2. Ask AI: is_emergency?
-         *   3. DEAD_ZONE:
-         *        - emergency OR priority === 1 → deliver immediately
-         *        - P2, P3 → defer to queue
-         *   4. 5G:
-         *        - deliver everything immediately
+         *   1. Compute intent via AI (EMERGENCY, OOO, SPAM, ROUTINE)
+         *   2. Assign Absolute Priority (0 to 999) using Preferences Engine
+         *   3. Network Routing
          */
         socket.on('inject_mock_message', async (msg) => {
             msg.timestamp = msg.timestamp || Date.now();
             msg.app = msg.app || "Unknown";
 
-            console.log(`[INCOMING] Text from ${msg.sender} via ${msg.app}`);
+            // Step 1: Edge AI Classification (Async)
+            const intent = msg.is_emergency ? 'EMERGENCY' : await classifyMessageIntent(msg.text);
+            msg.intent = intent;
 
-            try {
-                // Step 1: Priority Engine
-                const priorityData = preferences.calculateAbsolutePriority(msg);
-                msg.absolutePriority = priorityData.priority;
-                msg.isContactOverride = priorityData.isContactOverride;
-                msg.priority = msg.absolutePriority; // 1=High, 2=Medium, 3=Low
-                console.log(`[TRIAGE] Assigned Absolute Priority: ${msg.absolutePriority}`);
+            // Step 2: Algorithmic Triage (Sync Priority Scoring)
+            const priorityData = preferences.calculateAbsolutePriority(msg, intent);
+            msg.absolutePriority = priorityData.priority;
+            
+            // Setting helpers for UI / Logging
+            msg.is_emergency = (msg.absolutePriority === 0);
+            msg.isContactOverride = priorityData.isContactOverride;
+            msg.isMuted = priorityData.isMuted;
+            msg.priority = msg.absolutePriority;
 
-                // Step 2: Edge AI Gatekeeper
-                const isEmergency = await checkEmergencyIntent(msg.text);
-                msg.is_emergency = isEmergency;
+            console.log(`[TRIAGE] Message from ${msg.sender} on ${msg.app} -> Intent: ${intent}, Absolute Priority: ${msg.absolutePriority}`);
 
-                // Step 3: Route based on network
-                // Note: isEmergency = AI determination. msg.is_emergency = client flag (from GodMode TRIGGER EMERGENCY).
-                // Both must be respected.
-                const emergencyFlag = isEmergency || msg.is_emergency;
-                msg.is_emergency = emergencyFlag; // normalise so UI always gets the right flag
-
-                if (currentNetwork === "5G") {
-                    // 5G: deliver everything live
+            // Step 3: Network Routing
+            if (currentNetwork === "5G") {
+                queue.trackDelivered(msg);
+                io.emit('receive_live_message', msg);
+                console.log(`📲 Live Message Broadcasted (5G) - Priority: ${msg.absolutePriority}`);
+            } else {
+                // DEAD_ZONE Logic
+                if (msg.absolutePriority === 0 || msg.absolutePriority === 1) {
+                    // Bypass queue (Emergency or Priority 1 / Rank 1 VIP)
                     queue.trackDelivered(msg);
-                    if (emergencyFlag) {
-                        io.emit('emergency_alert', { ...msg, is_emergency: true });
-                        console.log("🚨 Emergency Alert (5G)");
+                    if (msg.absolutePriority === 0) {
+                        io.emit('emergency_alert', msg);
+                        console.log("🚨 Emergency Alert Broadcasted (DEAD_ZONE)");
                     } else {
                         io.emit('receive_live_message', msg);
-                        console.log("📲 Live Message (5G)");
+                        console.log("⚡ Priority 1 Breakthrough Broadcasted (DEAD_ZONE)");
                     }
-                    broadcastStats(io);
                 } else {
-                    // DEAD_ZONE: only emergencies and P1 break through
-                    if (emergencyFlag || msg.absolutePriority === 1) {
-                        queue.trackDelivered(msg);
-                        if (emergencyFlag) {
-                            io.emit('emergency_alert', { ...msg, is_emergency: true });
-                            console.log("🚨 Emergency Alert (DEAD_ZONE override)");
-                        } else {
-                            io.emit('receive_live_message', msg);
-                            console.log("📲 Priority-1 Delivered (DEAD_ZONE override)");
-                        }
-                    } else {
-                        // P2, P3 → defer
-                        queue.push(msg);
-                        console.log(`📦 Deferred (P${msg.absolutePriority}). Pending: ${queue.length}`);
-                        io.emit('queue_updated', queue.length);
-                    }
-                    broadcastStats(io);
+                    // Queue for Later (Absolute Priority > 1)
+                    queue.push(msg);
+                    console.log(`📦 Message Queued (Priority ${msg.absolutePriority}). Current queue size: ${queue.length}`);
+                    io.emit('queue_updated', queue.length, queue.savedData); // Count & bytes saved
+                    broadcastStats(io); // Update full stats
                 }
-            } catch (error) {
-                console.error("[ERROR] Routing failed:", error);
-                io.emit('receive_live_message', msg);
             }
         });
 

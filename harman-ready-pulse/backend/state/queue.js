@@ -8,9 +8,10 @@ class NotificationQueue {
     this.deliveredCount = 0;   // Total messages delivered live
     this.deferredCount = 0;    // Total messages deferred to queue
   }
-  
-  push(msg) { 
-    this.messages.push(msg); 
+
+  push(msg) {
+    this.messages.push(msg);
+    this.messages.sort((a, b) => (a.absolutePriority - b.absolutePriority) || (b.timestamp - a.timestamp));
     const size = Buffer.byteLength(JSON.stringify(msg), 'utf8');
     this.bytesSaved += size;
     this.deferredCount++;
@@ -22,20 +23,20 @@ class NotificationQueue {
     this.bytesDelivered += size;
     this.deliveredCount++;
   }
-  
+
   /**
    * Sorting Engine: Priority first (ascending), then timestamp (oldest first).
    */
-  getAllSorted() { 
+  getAllSorted() {
     return [...this.messages].sort(
       (a, b) => (a.absolutePriority - b.absolutePriority) || (b.timestamp - a.timestamp)
     );
   }
-  
-  clear() { 
-    this.messages = []; 
+
+  clear() {
+    this.messages = [];
   }
-  
+
   get length() { return this.messages.length; }
   get savedData() { return this.bytesSaved; }
 

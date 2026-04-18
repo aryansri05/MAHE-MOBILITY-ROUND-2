@@ -1,80 +1,45 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import Slider from "rc-slider";
 import "rc-slider/assets/index.css";
-import { MessageCircle, Hash, Users, Mail, Play, Camera, ChevronDown, GripVertical } from "lucide-react";
+import { MessageCircle, MapPin, CloudRain, ShieldAlert, ChevronDown, GripVertical } from "lucide-react";
 import { motion, Reorder } from "framer-motion";
 import { socket } from "../socket";
+import { PreferencesContext } from "../context/PreferencesContext";
 
 const APPS = [
-  { id: "whatsapp", name: "WhatsApp", Icon: MessageCircle, color: "text-green-500" },
-  { id: "gmail", name: "Gmail", Icon: Mail, color: "text-red-500" },
-  { id: "slack", name: "Slack", Icon: Hash, color: "text-purple-500" },
-  { id: "teams", name: "Teams", Icon: Users, color: "text-indigo-500" },
-  { id: "youtube", name: "YouTube", Icon: Play, color: "text-red-400" },
-  { id: "instagram", name: "Instagram", Icon: Camera, color: "text-pink-500" },
+  { id: "emergency services", name: "Emergency Services", Icon: ShieldAlert, color: "text-red-500" },
+  { id: "google maps", name: "Google Maps", Icon: MapPin, color: "text-blue-500" },
+  { id: "weather", name: "Weather", Icon: CloudRain, color: "text-cyan-500" },
+  { id: "whatsapp", name: "WhatsApp", Icon: MessageCircle, color: "text-green-500" }
 ];
 
 export default function PreferencesPage() {
-  const [preferences, setPreferences] = useState({
-    whatsapp: { priority: 2, timeRange: [0, 24] },
-    gmail: { priority: 1, timeRange: [9, 17] },
-    slack: { priority: 1, timeRange: [9, 17] },
-    teams: { priority: 1, timeRange: [9, 18] },
-    youtube: { priority: 3, timeRange: [0, 24] },
-    instagram: { priority: 3, timeRange: [0, 24] }
-  });
-
-  const [contactPriorities, setContactPriorities] = useState([
-    { id: "mom", name: "Mom", priority: "High (Override)" },
-    { id: "boss", name: "Boss", priority: "High (Override)" },
-    { id: "john", name: "John Doe", priority: "Normal" },
-  ]);
+  const {
+    preferences,
+    updatePreference,
+    contactPriorities,
+    setContactPriorities,
+    addContact,
+    savePreferences
+  } = useContext(PreferencesContext);
 
   const [expandedApp, setExpandedApp] = useState("whatsapp");
 
   const [newContact, setNewContact] = useState("");
 
   const handleUpdate = (appId, field, value) => {
-    setPreferences(prev => ({
-      ...prev,
-      [appId]: { ...prev[appId], [field]: value }
-    }));
+    updatePreference(appId, field, value);
   };
 
   const handleAddContact = () => {
-    if (!newContact.trim()) return;
-    const name = newContact.trim();
-    const newId = name.toLowerCase().replace(/\s+/g, '-');
-    if (!contactPriorities.some(c => c.id === newId)) {
-      setContactPriorities([...contactPriorities, { id: newId, name, priority: "High (Override)" }]);
-    }
+    addContact(newContact);
     setNewContact("");
   };
 
   const formatTime = (hour) => `${String(hour).padStart(2, '0')}:00`;
 
   const handleSave = () => {
-    const formattedPrefs = {};
-    
-    // Map contact priorities to a dictionary based on rank
-    // Rank 0, 1 -> Priority 1. Others -> Priority 2
-    const contactOverridesMap = {};
-    contactPriorities.forEach((contact, index) => {
-      contactOverridesMap[contact.name] = index <= 1 ? 1 : 2;
-    });
-
-    Object.keys(preferences).forEach(appId => {
-      formattedPrefs[appId] = {
-        basePriority: preferences[appId].priority,
-        timeWindow: {
-          start: formatTime(preferences[appId].timeRange[0]),
-          end: formatTime(preferences[appId].timeRange[1])
-        },
-        contactOverrides: appId === 'whatsapp' ? contactOverridesMap : {}
-      };
-    });
-
-    socket.emit("update_preferences", formattedPrefs);
+    savePreferences();
     // Optional: add a tiny visual feedback
     const btn = document.getElementById("save-btn");
     if(btn) {
@@ -147,8 +112,9 @@ export default function PreferencesPage() {
                           <label className="block text-sm text-gray-400 mb-3 font-medium uppercase tracking-wider">Base Priority Level</label>
                           <select 
                             value={prefs.priority} 
+                            disabled={app.id !== 'whatsapp'}
                             onChange={(e) => handleUpdate(app.id, 'priority', parseInt(e.target.value, 10))}
-                            className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white appearance-none"
+                            className={`w-full bg-gray-900 border border-gray-700 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white appearance-none ${app.id !== 'whatsapp' ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <option value={1}>Priority 1: High (Immediate / Interrupt)</option>
                             <option value={2}>Priority 2: Medium (Standard Queue)</option>
@@ -166,6 +132,7 @@ export default function PreferencesPage() {
                           <div className="px-3">
                             <Slider
                               range
+                              disabled={app.id !== 'whatsapp'}
                               min={0}
                               max={24}
                               value={prefs.timeRange}
@@ -190,56 +157,60 @@ export default function PreferencesPage() {
           {/* Right Column: Priority Routing */}
           <div className="space-y-6">
             <h2 className="text-xl font-semibold border-b border-gray-800 pb-3">Message Priority Order</h2>
-            
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <MessageCircle className="w-6 h-6 text-green-500" />
-                <h3 className="text-lg font-medium text-white">WhatsApp Contact Priority</h3>
-              </div>
-              <p className="text-sm text-gray-400 mb-6">
-                Drag and drop contacts to set their priority hierarchy. High priority contacts will bypass the global app rules and trigger immediate notifications.
-              </p>
+            {expandedApp === 'whatsapp' ? (
+              <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <MessageCircle className="w-6 h-6 text-green-500" />
+                  <h3 className="text-lg font-medium text-white">WhatsApp Contact Priority</h3>
+                </div>
+                <p className="text-sm text-gray-400 mb-6">
+                  Drag and drop contacts to set their priority hierarchy. High priority contacts will bypass the global app rules and trigger immediate notifications.
+                </p>
 
-              <Reorder.Group axis="y" values={contactPriorities} onReorder={setContactPriorities} className="space-y-3">
-                {contactPriorities.map((contact, index) => (
-                  <Reorder.Item 
-                    key={contact.id} 
-                    value={contact}
-                    className="flex items-center gap-4 bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:border-gray-600 transition-colors"
+                <Reorder.Group axis="y" values={contactPriorities} onReorder={setContactPriorities} className="space-y-3">
+                  {contactPriorities.map((contact, index) => (
+                    <Reorder.Item 
+                      key={contact.id} 
+                      value={contact}
+                      className="flex items-center gap-4 bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm cursor-grab active:cursor-grabbing hover:border-gray-600 transition-colors"
+                    >
+                      <GripVertical className="text-gray-500 w-5 h-5 flex-none" />
+                      <div className="flex-1 flex justify-between items-center">
+                        <span className="font-semibold text-white">{contact.name}</span>
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                          index === 0 ? 'bg-red-900/30 text-red-400 border border-red-800/50' : 
+                          index === 1 ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-800/50' :
+                          'bg-gray-900 text-gray-500 border border-gray-700'
+                        }`}>
+                          Rank {index + 1}
+                        </span>
+                      </div>
+                    </Reorder.Item>
+                  ))}
+                </Reorder.Group>
+
+                <div className="mt-6 flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newContact}
+                    onChange={(e) => setNewContact(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddContact()}
+                    placeholder="Add new contact..." 
+                    className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button 
+                    onClick={handleAddContact}
+                    className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl border border-gray-700 transition-colors font-medium"
                   >
-                    <GripVertical className="text-gray-500 w-5 h-5 flex-none" />
-                    <div className="flex-1 flex justify-between items-center">
-                      <span className="font-semibold text-white">{contact.name}</span>
-                      <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                        index === 0 ? 'bg-red-900/30 text-red-400 border border-red-800/50' : 
-                        index === 1 ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-800/50' :
-                        'bg-gray-900 text-gray-500 border border-gray-700'
-                      }`}>
-                        Rank {index + 1}
-                      </span>
-                    </div>
-                  </Reorder.Item>
-                ))}
-              </Reorder.Group>
-
-              <div className="mt-6 flex gap-2">
-                <input 
-                  type="text" 
-                  value={newContact}
-                  onChange={(e) => setNewContact(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddContact()}
-                  placeholder="Add new contact..." 
-                  className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button 
-                  onClick={handleAddContact}
-                  className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl border border-gray-700 transition-colors font-medium"
-                >
-                  Add
-                </button>
+                    Add
+                  </button>
+                </div>
               </div>
-            </div>
-            
+            ) : (
+               <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 text-center text-gray-500">
+                Contact overrides are only available for WhatsApp. Please select WhatsApp to configure VIP contacts.
+               </div>
+            )}
           </div>
         </div>
       </div>

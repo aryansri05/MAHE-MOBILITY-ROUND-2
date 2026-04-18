@@ -19,6 +19,19 @@ export default function TopNavbar() {
       {/* Right: Navigation Links */}
       <div className="flex items-center gap-4">
         <NavLink
+          to="/fleet"
+          className={({ isActive }) =>
+            `flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 border ${
+              isActive
+                ? 'bg-blue-600/20 text-blue-400 border-blue-500/50 shadow-[0_0_10px_rgba(59,130,246,0.3)]'
+                : 'bg-gray-800/50 text-gray-400 border-gray-700/50 hover:bg-gray-700 hover:text-white hover:border-gray-600'
+            }`
+          }
+        >
+          <Cpu className="w-5 h-5" />
+          <span>Fleet Telemetry</span>
+        </NavLink>
+        <NavLink
           to="/preferences"
           className={({ isActive }) =>
             `flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 border ${

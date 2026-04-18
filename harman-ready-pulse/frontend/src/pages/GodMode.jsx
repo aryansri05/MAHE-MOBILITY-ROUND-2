@@ -1,29 +1,17 @@
 import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Play, Pause, Radio, MessageSquarePlus, Zap, Settings2, Trash2 } from 'lucide-react';
+import { MessageSquarePlus, Zap, Trash2 } from 'lucide-react';
 
 export default function GodMode({ socket }) {
   const [msgText, setMsgText] = useState("");
   const [sender, setSender] = useState("Mom");
   const [app, setApp] = useState("WhatsApp");
-  const [isPlaying, setIsPlaying] = useState(true);
-
-  const sendNetworkToggle = (state) => {
-    console.log(`[GodMode] Emitting network state: ${state}`);
-    socket.emit('network_state_changed', state);
-  };
-
-  const toggleSimulation = (playState) => {
-    console.log(`[GodMode] Emitting simulation state: playing=${playState}`);
-    setIsPlaying(playState);
-    socket.emit('simulation_state', { playing: playState });
-  };
 
   const injectMessage = (isEmergency = false) => {
     const payload = {
       id: uuidv4(),
       app: app,
-      sender: sender,
+      sender: app === 'WhatsApp' ? sender : app,
       text: isEmergency
         ? (msgText.trim() || "Emergency alert from driver — immediate attention required")
         : msgText,
@@ -56,39 +44,6 @@ export default function GodMode({ socket }) {
           {/* LEFT COLUMN: Controls */}
           <div className="space-y-8">
             
-            {/* Simulation Control */}
-            <div className="bg-gray-900/60 border border-gray-800 p-6 rounded-2xl shadow-lg backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <Radio className="w-5 h-5 text-blue-500" />
-                <h2 className="text-lg font-semibold text-gray-200">Map Simulation</h2>
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => toggleSimulation(true)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl font-bold transition-all active:scale-95 ${
-                    isPlaying 
-                      ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] border border-blue-500' 
-                      : 'bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700'
-                  }`}
-                >
-                  <Play className="w-5 h-5" /> START
-                </button>
-                <button
-                  onClick={() => toggleSimulation(false)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-xl font-bold transition-all active:scale-95 ${
-                    !isPlaying 
-                      ? 'bg-amber-600 text-white shadow-[0_0_20px_rgba(217,119,6,0.4)] border border-amber-500' 
-                      : 'bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700'
-                  }`}
-                >
-                  <Pause className="w-5 h-5" /> PAUSE
-                </button>
-              </div>
-            </div>
-
-
-
-            {/* System Override */}
             <div className="bg-red-950/20 border border-red-900/50 p-6 rounded-2xl shadow-lg">
               <div className="flex items-center gap-3 mb-4">
                 <Trash2 className="w-5 h-5 text-red-500" />
@@ -122,12 +77,10 @@ export default function GodMode({ socket }) {
                     onChange={(e) => setApp(e.target.value)}
                     className="w-full bg-black border border-gray-700 rounded-xl px-4 py-3.5 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   >
+                    <option>Emergency Services</option>
+                    <option>Google Maps</option>
+                    <option>Weather</option>
                     <option>WhatsApp</option>
-                    <option>Gmail</option>
-                    <option>Slack</option>
-                    <option>Teams</option>
-                    <option>YouTube</option>
-                    <option>Instagram</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
                     <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
@@ -135,16 +88,18 @@ export default function GodMode({ socket }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-widest">Sender ID</label>
-                <input
-                  type="text"
-                  value={sender}
-                  onChange={(e) => setSender(e.target.value)}
-                  placeholder="e.g. Mom, Boss, Support"
-                  className="w-full bg-black border border-gray-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
+              {app === 'WhatsApp' && (
+                <div>
+                  <label className="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-widest">Sender ID</label>
+                  <input
+                    type="text"
+                    value={sender}
+                    onChange={(e) => setSender(e.target.value)}
+                    placeholder="e.g. Mom, Boss, Support"
+                    className="w-full bg-black border border-gray-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-widest">Message Content</label>
@@ -158,19 +113,12 @@ export default function GodMode({ socket }) {
               </div>
             </div>
 
-            <div className="flex gap-4 mt-8 pt-6 border-t border-gray-800">
+            <div className="flex mt-8 pt-6 border-t border-gray-800">
               <button
                 onClick={() => injectMessage(false)}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold text-white transition-all shadow-[0_4px_14px_0_rgba(79,70,229,0.39)] active:scale-95"
+                className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-white transition-all shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] active:scale-95"
               >
-                TRANSMIT
-              </button>
-
-              <button
-                onClick={() => injectMessage(true)}
-                className="flex-1 bg-red-600 hover:bg-red-500 py-4 rounded-xl font-bold text-white transition-all shadow-[0_4px_14px_0_rgba(220,38,38,0.39)] active:scale-95"
-              >
-                TRIGGER EMERGENCY
+                Send Notification
               </button>
             </div>
           </div>

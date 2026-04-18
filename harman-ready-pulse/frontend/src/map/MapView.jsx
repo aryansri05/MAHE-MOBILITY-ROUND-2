@@ -15,7 +15,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { socket } from "../socket";
-import SignalHeatmap from "./SignalHeatmap";
+import UnifiedHeatmapLayer from "../components/Dashboard/UnifiedHeatmapLayer";
 import { calculateSignalAtLocation } from "../utils/signal";
 import { useNetworkStability } from "../hooks/useNetworkStability";
 
@@ -103,6 +103,7 @@ export default function MapView() {
   const [position, setPosition] = useState(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [rawSignal, setRawSignal] = useState(1.0);
+  const [liveTelemetryBuffer, setLiveTelemetryBuffer] = useState([]);
 
   // ── Refs ──
   const indexRef = useRef(0);
@@ -120,8 +121,22 @@ export default function MapView() {
     const handleSimulationState = (state) => {
       if (state.playing !== undefined) setIsPlaying(state.playing);
     };
+    
+    const handleTelemetrySync = (payload) => {
+      if (Array.isArray(payload)) {
+        setLiveTelemetryBuffer(payload);
+      } else {
+        setLiveTelemetryBuffer(payload.buffer || []);
+      }
+    };
+
     socket.on("simulation_state", handleSimulationState);
-    return () => socket.off("simulation_state", handleSimulationState);
+    socket.on('fleet_telemetry_sync', handleTelemetrySync);
+    
+    return () => {
+      socket.off("simulation_state", handleSimulationState);
+      socket.off('fleet_telemetry_sync', handleTelemetrySync);
+    };
   }, []);
 
   // ── Drive simulation loop ──
@@ -169,12 +184,12 @@ export default function MapView() {
         scrollWheelZoom={true}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution='&copy; CARTO'
         />
 
         {/* Signal Heatmap Overlay */}
-        <SignalHeatmap points={HEATMAP_POINTS} />
+        <UnifiedHeatmapLayer data={liveTelemetryBuffer} />
 
         {/* Route Polyline */}
         {route.length > 0 && (
