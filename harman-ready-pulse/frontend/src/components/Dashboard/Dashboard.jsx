@@ -1,16 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { socket } from "../../socket";
 
 import NotificationList from "./NotificationList";
 import MetricsPanel from "./MetricsPanel";
 import PredictiveBar from "./PredictiveBar";
 import SmartSummary from "./SmartSummary";
+import SettingsModal from "./SettingsModal";
 
 export default function Dashboard() {
   const [messages, setMessages] = useState([]);
   const [queueCount, setQueueCount] = useState(0);
   const [network, setNetwork] = useState("5G");
   const [summary, setSummary] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const queueThrottleRef = useRef(null);
+  const latestQueueCountRef = useRef(0);
 
   useEffect(() => {
     // 📩 Live Messages
@@ -20,7 +24,14 @@ export default function Dashboard() {
 
     // 📦 Queue Count (number)
     const handleQueue = (count) => {
-      setQueueCount(count);
+      latestQueueCountRef.current = count;
+      if (!queueThrottleRef.current) {
+        setQueueCount(count);
+        queueThrottleRef.current = setTimeout(() => {
+          setQueueCount(latestQueueCountRef.current);
+          queueThrottleRef.current = null;
+        }, 500);
+      }
     };
 
     // 📡 Network State
@@ -71,9 +82,17 @@ export default function Dashboard() {
       }`}
     >
       {/* 🔷 HEADER */}
-      <h1 className="text-xl mb-4 text-gray-400 font-semibold tracking-widest uppercase">
-        Controller Pit
-      </h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl text-gray-400 font-semibold tracking-widest uppercase">
+          Controller Pit
+        </h1>
+        <button 
+          onClick={() => setIsSettingsOpen(true)}
+          className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-700 flex items-center gap-2"
+        >
+          <span>⚙️</span> Preferences
+        </button>
+      </div>
 
       {/* 📶 NETWORK BAR */}
       <PredictiveBar network={network} />
@@ -98,8 +117,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 🔊 AI VOICE (invisible component) */}
-      {summary && <SmartSummary text={summary} />}
+      {/* 🔊 AI VOICE (now visible component) */}
+      <SmartSummary text={summary} />
+
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={(config) => {
+          socket.emit("update_preferences", config);
+        }}
+      />
     </div>
   );
 }
