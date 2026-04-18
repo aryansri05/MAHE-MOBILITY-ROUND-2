@@ -67,8 +67,8 @@ module.exports = (io) => {
          *   1. Compute priority via Preference Engine.
          *   2. Ask AI: is_emergency?
          *   3. If DEAD_ZONE:
-         *        - emergency OR priority == 1 → deliver immediately
-         *        - else → push to queue
+         *        - emergency → deliver immediately (safety-critical)
+         *        - everything else → push to queue (save bandwidth)
          *   4. If 5G:
          *        - deliver everything immediately
          */
@@ -100,18 +100,18 @@ module.exports = (io) => {
                 } else {
                     // ── DEAD_ZONE routing ──
                     if (isEmergency || msg.priority === 1) {
-                        // Critical: push through even in dead zone
+                        // Emergencies + Priority 1 break through dead zone
                         if (isEmergency) {
                             io.emit('emergency_alert', { ...msg, is_emergency: true });
                             console.log("🚨 Emergency Alert Broadcasted (DEAD_ZONE override)");
                         } else {
                             io.emit('receive_live_message', msg);
-                            console.log("📲 Priority-1 Message Delivered (DEAD_ZONE override)");
+                            console.log("📲 Priority-1 Delivered (DEAD_ZONE override)");
                         }
                     } else {
-                        // Non-critical in dead zone → queue
+                        // P2, P3 → queue for later
                         queue.push(msg);
-                        console.log(`📦 Message Queued. Current queue size: ${queue.length}`);
+                        console.log(`📦 Message Deferred (P${msg.priority}). Pending: ${queue.length}`);
 
                         io.emit('queue_updated', queue.length);
                         io.emit('stats_updated', { bytesSaved: queue.savedData });
