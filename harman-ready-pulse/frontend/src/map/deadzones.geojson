@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "deadzone-1"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [77.5950, 12.9720],
+            [77.5970, 12.9720],
+            [77.5970, 12.9740],
+            [77.5950, 12.9740],
+            [77.5950, 12.9720]
+          ]
+        ]
+      }
+    }
+  ]
+}
