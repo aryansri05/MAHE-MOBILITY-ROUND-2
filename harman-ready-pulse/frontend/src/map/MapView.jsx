@@ -2,8 +2,7 @@ import { MapContainer, TileLayer, Marker, Polyline, GeoJSON } from "react-leafle
 import { useEffect, useState, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import deadzones from "./deadzones.json";
-import { booleanPointInPolygon, point } from "@turf/turf";
+import * as turf from "@turf/turf";
 import { socket } from "../socket";
 
 // Fix: Leaflet default marker icons are broken in Vite/webpack builds
@@ -14,34 +13,75 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
+// Inline dead zones data (avoids Vite JSON transform issues)
+const deadzones = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      properties: {
+        network: "Jio_Failure",
+        description: "Primary Dead Zone (Indiranagar)",
+        color: "#ef4444"
+      },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [77.6300, 12.9700],
+            [77.6500, 12.9700],
+            [77.6500, 12.9900],
+            [77.6300, 12.9900],
+            [77.6300, 12.9700]
+          ]
+        ]
+      }
+    },
+    {
+      type: "Feature",
+      properties: {
+        network: "Airtel_Failure",
+        description: "Secondary Dead Zone (Koramangala)",
+        color: "#ef4444"
+      },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [77.6100, 12.9200],
+            [77.6300, 12.9200],
+            [77.6300, 12.9400],
+            [77.6100, 12.9400],
+            [77.6100, 12.9200]
+          ]
+        ]
+      }
+    }
+  ]
+};
+
+// Inline simulation route — drives through both dead zones
+const SIMULATION_COORDS = [
+  [77.6400, 13.0000],
+  [77.6400, 12.9850],
+  [77.6400, 12.9800],
+  [77.6400, 12.9600],
+  [77.6200, 12.9450],
+  [77.6200, 12.9300],
+  [77.6200, 12.9100]
+];
+
 export default function MapView() {
   const [route, setRoute] = useState([]);
   const [position, setPosition] = useState(null);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
   const indexRef = useRef(0);
 
-  // Bangalore route: MG Road → Brigade Road
-  const start = [77.5946, 12.9716];
-  const end = [77.5985, 12.9755];
-
   useEffect(() => {
-    setLoading(true);
-    fetch(
-      `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        const coords = data.routes[0].geometry.coordinates.map((c) => [c[1], c[0]]);
-        setRoute(coords);
-        setPosition(coords[0]);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError(true);
-        setLoading(false);
-      });
+    // Convert [lng, lat] to [lat, lng] for Leaflet
+    const coords = SIMULATION_COORDS.map(c => [c[1], c[0]]);
+    setRoute(coords);
+    setPosition(coords[0]);
 
     const handleSimulationState = (state) => {
       if (state.playing !== undefined) setIsPlaying(state.playing);
@@ -57,42 +97,35 @@ export default function MapView() {
       const newPos = route[indexRef.current];
       setPosition(newPos);
 
-      const carPoint = point([newPos[1], newPos[0]]);
-      let inDeadZone = false;
-      for (const feature of deadzones.features) {
-        if (booleanPointInPolygon(carPoint, feature)) { inDeadZone = true; break; }
+      const carPoint = turf.point([newPos[1], newPos[0]]);
+      const isOffline = deadzones.features.some(zone => 
+          turf.booleanPointInPolygon(carPoint, zone)
+      );
+
+      if (isOffline) {
+          socket.emit('network_state', 'DEAD_ZONE');
+      } else {
+          socket.emit('network_state', '5G');
       }
-      socket.emit("network_status", inDeadZone ? "DEAD_ZONE" : "CONNECTED");
     }, 500);
     return () => clearInterval(interval);
   }, [route, isPlaying]);
 
-  const geoJsonStyle = { color: "#ef4444", weight: 2, opacity: 0.9, fillOpacity: 0.25 };
+  const geoJsonStyle = (feature) => ({
+    color: feature?.properties?.color || "#ef4444",
+    weight: 2,
+    opacity: 0.9,
+    fillOpacity: 0.25,
+  });
 
-  if (loading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900 rounded-xl border border-gray-800">
-        <div className="text-center text-gray-400">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm">Loading route...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900 rounded-xl border border-gray-800">
-        <p className="text-red-400 text-sm">Could not load map route. Check internet connection.</p>
-      </div>
-    );
-  }
+  // Center map to show both dead zones
+  const mapCenter = [12.9550, 77.6300];
 
   return (
     <div style={{ width: "100%", height: "100%" }} className="rounded-xl overflow-hidden border border-gray-800 shadow-2xl">
       <MapContainer
-        center={[12.9716, 77.5946]}
-        zoom={15}
+        center={mapCenter}
+        zoom={12}
         style={{ height: "100%", width: "100%" }}
         zoomControl={true}
         scrollWheelZoom={true}

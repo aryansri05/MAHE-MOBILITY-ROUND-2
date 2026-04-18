@@ -1,0 +1,45 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "network": "Jio_Failure",
+        "description": "Primary Dead Zone (Indiranagar)",
+        "color": "#ef4444"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [77.6300, 12.9700],
+            [77.6500, 12.9700],
+            [77.6500, 12.9900],
+            [77.6300, 12.9900],
+            [77.6300, 12.9700]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "network": "Airtel_Failure",
+        "description": "Secondary Dead Zone (Koramangala)",
+        "color": "#ef4444"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [77.6100, 12.9200],
+            [77.6300, 12.9200],
+            [77.6300, 12.9400],
+            [77.6100, 12.9400],
+            [77.6100, 12.9200]
+          ]
+        ]
+      }
+    }
+  ]
+}
