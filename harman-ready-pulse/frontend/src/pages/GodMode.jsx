@@ -23,7 +23,7 @@ export default function GodMode({ socket }) {
       app: app,
       sender: sender,
       text: isEmergency
-        ? "⚠️ EMERGENCY: Rerouting required due to accident!"
+        ? (msgText.trim() || "Emergency alert from driver — immediate attention required")
         : msgText,
       is_emergency: isEmergency,
       timestamp: Date.now(),
