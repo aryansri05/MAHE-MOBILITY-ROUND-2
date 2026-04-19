@@ -6,6 +6,18 @@ const { point } = require('@turf/helpers');
 
 // Load user's deadzones
 let deadZonesGeoJSON = { type: "FeatureCollection", features: [] };
+let activeProvider = "Airtel";
+
+function getActiveDeadzones() {
+  if (!deadZonesGeoJSON || !deadZonesGeoJSON.features) return { type: "FeatureCollection", features: [] };
+  return {
+    type: "FeatureCollection",
+    features: deadZonesGeoJSON.features.filter(f => 
+      !f.properties || !f.properties.network || f.properties.network.toLowerCase().includes(activeProvider.toLowerCase())
+    )
+  };
+}
+
 try {
   const filePath = path.join(__dirname, 'data', 'deadzones.json');
   const fileData = fs.readFileSync(filePath, 'utf-8');
@@ -27,7 +39,7 @@ try {
 // Check if dead zone
 function isInsideDeadZone(lat, lng) {
   const pt = point([lng, lat]);
-  return deadZonesGeoJSON.features.some(feature => {
+  return getActiveDeadzones().features.some(feature => {
      if (feature.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')) {
         return booleanPointInPolygon(pt, feature);
      }
@@ -55,12 +67,38 @@ class FleetSimulator {
     
     this.prepopulateHeatmap();
     this.startSimulation();
+
+    // Listen for provider changes
+    this.io.on('connection', (socket) => {
+      // Send current provider on connect
+      socket.emit('provider_changed', activeProvider);
+
+      socket.on('set_provider', (provider) => {
+        if (provider === activeProvider) return;
+        activeProvider = provider;
+        console.log(`[FLEET] Network Provider changed to: ${provider}`);
+        this.prepopulateHeatmap();
+        this.telemetryBuffer = []; // Clear live ghost cars on switch
+        
+        // Broadcast new provider to all clients
+        this.io.emit('provider_changed', provider);
+        
+        // Force an immediate sync to update the frontend map
+        const mappedCars = this.ghostCars.map(c => [c.lat, c.lng]);
+        this.io.emit('fleet_telemetry_sync', {
+            buffer: this.staticBuffer,
+            activeCars: mappedCars
+        });
+      });
+    });
   }
 
   prepopulateHeatmap() {
+    this.staticBuffer = []; // Reset static buffer before repopulating
+    const currentDeadzones = getActiveDeadzones();
     // 1. Explicitly fill the polygon dead zones so they are permanently RED and clearly visible.
-    if (deadZonesGeoJSON.features) {
-       deadZonesGeoJSON.features.forEach(feature => {
+    if (currentDeadzones.features) {
+       currentDeadzones.features.forEach(feature => {
          if (feature.geometry.type === 'Polygon') {
            const coords = feature.geometry.coordinates[0];
            if (coords.length > 0) {

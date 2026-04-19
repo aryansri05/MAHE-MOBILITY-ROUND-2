@@ -28,38 +28,46 @@ Classification:`;
 
 async function summarizeQueue(queueArray) {
     if (queueArray.length === 0) return "No missed messages.";
-    
-    // Find highest priority WhatsApp message (queueArray is already sorted by priority)
-    let topMessage = queueArray.find(m => m.app && m.app.toLowerCase().includes('whatsapp'));
-    
-    // Fallback if no WhatsApp message
-    if (!topMessage) {
-        topMessage = queueArray[0];
-    }
-    
-    const remainingCount = queueArray.length - 1;
 
-    const prompt = `Task: Summarize the missed messages.
-You are an in-car assistant reading a summary to the driver. 
-Top Message: "${topMessage.text}" from "${topMessage.sender}".
-Total other missed messages: ${remainingCount}.
+    // Group messages by app
+    const appCounts = {};
+    const whatsappSenders = new Set();
+    let whatsappCount = 0;
 
-Instructions:
-1. You must explicitly read out the contents of the top priority message exactly as written but conversationally. 
-2. State the number of other missed messages.
-3. Be brief, clear, and direct.
-4. Do not talk about what you are doing. Just say the summary.
+    queueArray.forEach(m => {
+        const app = m.app ? m.app.toLowerCase() : 'system';
+        
+        if (app.includes('whatsapp')) {
+            whatsappCount++;
+            if (m.sender) {
+                whatsappSenders.add(m.sender);
+            }
+        } else {
+            appCounts[app] = (appCounts[app] || 0) + 1;
+        }
+    });
 
-Response:`;
-    
-    const response = await queryEdgeAI(prompt);
-    
-    if (response === "ERROR_AI_OFFLINE") {
-        return `Network restored. You have a message from ${topMessage.sender} saying '${topMessage.text}'. You also missed ${remainingCount} other routine notifications.`;
+    let parts = [];
+
+    if (whatsappCount > 0) {
+        const sendersList = Array.from(whatsappSenders).join(" and ");
+        parts.push(`${whatsappCount} WhatsApp message${whatsappCount > 1 ? 's' : ''} from ${sendersList}`);
     }
 
-    // Stripping any remaining markdown just in case
-    return response.replace(/[*#_\[\]]/g, ''); 
+    for (const [app, count] of Object.entries(appCounts)) {
+        const capitalizedApp = app.charAt(0).toUpperCase() + app.slice(1);
+        parts.push(`${count} notification${count > 1 ? 's' : ''} from ${capitalizedApp}`);
+    }
+
+    let summaryText = "";
+    if (parts.length === 1) {
+        summaryText = `You missed ${parts[0]}.`;
+    } else if (parts.length > 1) {
+        const lastPart = parts.pop();
+        summaryText = `You missed ${parts.join(", ")} and got ${lastPart}.`;
+    }
+
+    return summaryText;
 }
 
 module.exports = { classifyMessageIntent, summarizeQueue };

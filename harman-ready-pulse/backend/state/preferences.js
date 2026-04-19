@@ -27,6 +27,19 @@ class PreferencesManager {
           "Mom": 1,
           "Boss": 1
         }
+      },
+      "Outlook": {
+        basePriority: 2,
+        timeWindow: { start: "00:00", end: "23:59" },
+        contactOverrides: {
+          "ceo@harman.com": 1,
+          "project-lead@harman.com": 1
+        }
+      },
+      "YouTube": {
+        basePriority: 3,
+        timeWindow: { start: "00:00", end: "23:59" },
+        contactOverrides: {}
       }
     };
   }
@@ -59,9 +72,14 @@ class PreferencesManager {
       return { priority: 1, isContactOverride: false, isMuted: false };
     }
 
-    // Step 2 & 3: WhatsApp Routing
-    if (normalizedApp === 'whatsapp') {
-      const app = this.rules["WhatsApp"];
+    if (normalizedApp === 'youtube') {
+      return { priority: 3, isContactOverride: false, isMuted: false };
+    }
+
+    // Step 2 & 3: WhatsApp and Outlook Routing
+    if (['whatsapp', 'outlook'].includes(normalizedApp)) {
+      const appKey = Object.keys(this.rules).find(k => k.toLowerCase() === normalizedApp);
+      const app = this.rules[appKey] || { basePriority: 2, timeWindow: null, contactOverrides: {} };
       
       const msgDate = timestamp ? new Date(timestamp) : new Date();
       const currentHour = msgDate.getHours();
